@@ -54,6 +54,12 @@ float smoothmin(float a, float b, float k)
     return min(a, b) - h * h / (k * 4.0);
 }
 
+float smoothmax(float a, float b, float k)
+{
+    float h = max( k - abs(a-b), 0.0);
+    return max(a, b) + h * h / (k * 4.0);
+}
+
 // SDFs
 
 float sphere( vec3 pos, float rad )
@@ -69,8 +75,18 @@ float ellipsoid( vec3 pos, vec3 rad )
     return k0 * (k0 - 1.0) / k1;
 }
 
-float character_head( vec3 pos, vec3 character_c )
+/**
+ * Material Index
+ * 0 = floor
+ * 1 = head material
+ * 2 = eye material
+ * 3 = mouth material
+ */
+
+vec2 character_head( vec3 pos, vec3 character_c )
 {
+    float material = -1.0;
+
     // lower head shape
     vec3 head_lower_c = character_c + vec3(0.0, 0.2, 0.0);
     float head_lower_s = 0.5;
@@ -81,24 +97,84 @@ float character_head( vec3 pos, vec3 character_c )
     // upper head shape
     vec3 head_upper_c = character_c + vec3(0.0, 0.3, 0.00);
     float head_upper_s = 0.4;
-    vec3 head_upper_r = vec3(0.5, 0.3, 0.5) * head_upper_s;
+    vec3 head_upper_r = vec3(0.45, 0.3, 0.5) * head_upper_s;
 
     float d_head_upper = ellipsoid(pos - head_upper_c, head_upper_r);
     float d_head = smoothmin(d_head_lower, d_head_upper, 0.06);
 
     // eyes
-    vec3 eye_pos = vec3(abs(pos.x), pos.yz);
-    mat3 eye_rot = rotation(0.5, -0.02, -0.2);
+    vec3 eye_pos = vec3(abs(pos.x), pos.yz); // mirrors everything across x = 0
+    mat3 eye_rot = rotation(0.25, -0.3, -0.4); // control first param
 
+    /**
+     * good eye positions...
+     *
+     * more forward: vec3(0.12, 0.005, 0.18);
+     * more side: 
+     */
     vec3 eye_c = character_c + head_upper_c + vec3(0.16, 0.005, 0.15);
-    vec3 eye_r = vec3(0.03, 0.04, 0.03);
+    float eye_s = 0.9;
+    vec3 eye_r = vec3(0.025, 0.04, 0.03) * eye_s;
+
     float d_eye = ellipsoid(eye_rot * (eye_pos - eye_c), eye_r);
 
-    return smoothmin(d_eye, d_head, 0.005);
+
+    // mouth
+
+    // notes on parametrization.
+    // as scale_x increases, smile_x needs to decrease.
+
+    float smile_x = 0.;
+
+    float m_s = 0.4;
+
+    float m_z = 0.5;
+
+    float m_y = -0.12;
+    float s_y = 0.15;
+    float s_x = 0.35;
+
+
+    m_y = -0.15;
+    s_y = 0.2;
+    s_x = 0.7;
+
+    // max open
+    m_y = -0.18;
+    s_y = 0.25;
+    s_x = 1.;
+
+    vec3 mouth_c = 
+        character_c + 
+        head_lower_c + 
+        vec3(0.0, m_y * m_s + smile_x * pos.x * pos.x, 0.15);
+
+    mat3 mouth_rot = rotation(-0.0, 0.0, 0.); // this controls how high the mouth is
+
+    /**
+     * good mouth poses...
+     * wide open mouth: vec3(0.8, 0.2, 0.6) * 0.5s
+     * closed mouth
+     */
+    // vec4 mouth_state
+
+
+    vec3 mouth_r = vec3(s_x, s_y, m_z) * m_s;
+    float d_mouth = ellipsoid(mouth_rot * (pos - mouth_c), mouth_r) / 2.;
+
+    float d_mouth_interior = ellipsoid(pos - (head_lower_c + vec3(0.0, -0.02, 0.03)), vec3(0.2, 0.13, 0.22));
+
+    float d1 = smoothmin(d_eye, d_head, 0.005);
+    float d2 = smoothmax(smoothmax(d1, -d_mouth, 0.01), -d_mouth_interior, 0.002);
+
+    if (d_eye < d_head) { material = 2.0; }
+    else { material = 1.0; }
+
+    return vec2(d2, material);
 
 }
 
-float character( vec3 pos )
+vec2 character( vec3 pos )
 {
     // float t = fract(u_time);
     
@@ -108,45 +184,52 @@ float character( vec3 pos )
     return character_head(pos, character_c);
 }
 
-float scene( vec3 pos )
+vec2 scene( vec3 pos )
 {
+    float material = 0.0;
+
     // character   
-    float d1 = character(pos);
+    vec2 d1 = character(pos);
 
     // floor
     float d2 = pos.y - (-0.25);
 
-    return min(d1, d2);
+    if (d1.x < d2) { material = d1.y; }
+
+    return vec2(min(d1.x, d2), material);
 }
 
 vec3 calc_normal(vec3 pos)
 {
     vec2 e = vec2(0.0001, 0.0);
     return normalize(
-        vec3( scene(pos + e.xyy ) - scene(pos - e.xyy), 
-              scene(pos + e.yxy ) - scene(pos - e.yxy), 
-              scene(pos + e.yyx ) - scene(pos - e.yyx) )
+        vec3( scene(pos + e.xyy ).x - scene(pos - e.xyy).x, 
+              scene(pos + e.yxy ).x - scene(pos - e.yxy).x, 
+              scene(pos + e.yyx ).x - scene(pos - e.yyx).x )
     );
 }
 
-float cast_ray (vec3 ro, vec3 rd)
+vec2 cast_ray (vec3 ro, vec3 rd)
 {
     float t = 0.0;
+    float m = -1.0;
+
     for ( int i = 0; i < 100; i++ )
     {
         vec3 pos = ro + t * rd;
-        float h = scene( pos );
+        vec2 h = scene( pos );
 
-        if (h < 0.001) break; // hit the scene.
+        if (h.x < 0.001) break; // hit the scene.
 
-        t += h;
+        t += h.x;
+        m = h.y;
 
         if (t > 20.) break; // hit the far-clipping plane.
     }
 
     if (t > 20.) t = -1.0;
 
-    return t;
+    return vec2(t, m);
 }
 
 void main () 
@@ -166,19 +249,22 @@ void main ()
     vec3 col = vec3(0.5, 0.6, 0.75) - 0.4 * p.y;
     col = mix(col, vec3(0.7, 0.75, 0.8), exp(-10. * rd.y));
 
-    float t = cast_ray(ro, rd);
+    vec2 hit = cast_ray(ro, rd);
+    float t = hit.x;
 
     if (t > 0.0) {
         // col = vec3(1.0);
         vec3 pos = ro + t * rd;
         vec3 nor = calc_normal(pos);
 
+
         vec3 mate = vec3(0.2, 0.2, 0.2);
+        if (hit.y == 2.0) { mate = vec3(0.02, 0.02, 0.03); }
 
         // sun data
         vec3 sun_dir = normalize(vec3(0.4, 0.4, 0.4));
         vec3 sun_col = vec3(6.2, 5.0, 4.0);
-        float sun_sha = step(cast_ray(pos+nor*0.001, sun_dir), 0.0);
+        float sun_sha = step(cast_ray(pos+nor*0.001, sun_dir).x, 0.0);
         float sun_dif = clamp(dot(nor, sun_dir), 0.0, 1.0);
 
 
