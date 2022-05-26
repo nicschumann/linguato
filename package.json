@@ -1,0 +1,21 @@
+{
+  "name": "linguato",
+  "version": "1.0.0",
+  "description": "A sock-puppet, animated with ray marching.",
+  "main": "src/main.js",
+  "scripts": {
+    "build": "node ./bld/build.js",
+    "serve": "node ./bld/serve.js",
+    "deploy-gh-pages": "./bld/deploy-gh-pages.sh"
+  },
+  "author": "Nic Schumann <nic@nicschumann.co>",
+  "license": "ISC",
+  "devDependencies": {
+    "chokidar": "^3.5.1",
+    "esbuild": "^0.9.2",
+    "live-server": "^1.1.0"
+  },
+  "dependencies": {
+    "regl": "^2.1.0"
+  }
+}
