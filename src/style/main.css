@@ -59,3 +59,7 @@ table {
 	bottom:1vw;
 	left:1vw;
 }
+
+.metadata-row {
+	font-size: 2em;
+}

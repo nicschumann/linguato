@@ -7,6 +7,16 @@ uniform vec2 u_resolution;
 uniform float u_mouse_x;
 
 
+uniform float u_smile;
+uniform float u_width;
+uniform float u_open;
+
+
+float remap(float t, float a, float b, float c, float d)
+{
+    return ((t - a) / (b - a)) * (d - c) + c;
+}
+
 // Rigid Transforms
 
 mat3 rotation(float a, float b, float g) 
@@ -81,6 +91,7 @@ float ellipsoid( vec3 pos, vec3 rad )
  * 1 = head material
  * 2 = eye material
  * 3 = mouth material
+ * 4 = tongue material
  */
 
 vec2 character_head( vec3 pos, vec3 character_c )
@@ -110,21 +121,41 @@ vec2 character_head( vec3 pos, vec3 character_c )
      * good eye positions...
      *
      * more forward: vec3(0.12, 0.005, 0.18);
-     * more side: 
+     * more side: vec3(0.16, 0.005, 0.15);
      */
-    vec3 eye_c = character_c + head_upper_c + vec3(0.16, 0.005, 0.15);
-    float eye_s = 0.9;
+    vec3 eye_c = character_c + head_upper_c + vec3(0.12, 0.005, 0.18);
+    float eye_s = 0.8;
     vec3 eye_r = vec3(0.025, 0.04, 0.03) * eye_s;
 
     float d_eye = ellipsoid(eye_rot * (eye_pos - eye_c), eye_r);
 
+    // cheeks
 
     // mouth
 
     // notes on parametrization.
     // as scale_x increases, smile_x needs to decrease.
 
-    float smile_x = 0.;
+    // mouth state parameters.
+    // float state_open = 1.0; // [0, 1]
+    // float state_back = 1.0; // width? [0, 1]
+    // float state_smile = 1.0; // [-1, 1]
+    float state_open = u_open; // [0, 1]
+    float state_back = u_width; // width? [0, 1]
+    float state_smile = u_smile; // [-1, 1]
+
+    float sm_remap_start = -1.0;
+    float sm_remap_end = 3.;
+
+    float op_remap_start = remap(state_smile, -1.0, 1.0,    0.01, 0.02); // 0.01;
+    float op_remap_end = remap(state_smile, -1.0, 1.0,    0.2, 0.2);
+
+    // float bk_remap_start = 0.2;
+    float bk_remap_start = remap(state_open, 0.0, 1.0,    0.05, 0.3);
+    float bk_remap_end = remap(state_open, 0.0, 1.0,    0.35, 0.45) * remap(state_smile, -1.0, 1.0, 1.0, 0.8);
+
+
+    float smile_x = remap(state_smile, -1.0, 1.0, -1.0, 1.5); // min -1.0, max: 1.5
 
     float m_s = 0.4;
 
@@ -134,22 +165,34 @@ vec2 character_head( vec3 pos, vec3 character_c )
     float s_y = 0.15;
     float s_x = 0.35;
 
+    // min open;
+    smile_x = remap(state_smile, -1.0, 1.0, sm_remap_start, sm_remap_end); // resting pos?
+    s_y = remap(state_open, 0.0, 1.0, op_remap_start, op_remap_end); // min: 0.01, max: 0.3
+    s_x = remap(state_back, 0.0, 1.0, bk_remap_start, bk_remap_end); // min: 0.5
 
-    m_y = -0.15;
-    s_y = 0.2;
-    s_x = 0.7;
+    m_y = -0.1; // function of x, y, and s
 
-    // max open
-    m_y = -0.18;
-    s_y = 0.25;
-    s_x = 1.;
+    // /i/
+    // m_y = -0.15;
+    // s_y = 0.1;
+    // s_x = 0.2;
+
+
+    // m_y = -0.15;
+    // s_y = 0.2;
+    // s_x = 0.7;
+
+    // // max open
+    // m_y = -0.18;
+    // s_y = 0.25;
+    // s_x = 1.;
 
     vec3 mouth_c = 
         character_c + 
         head_lower_c + 
-        vec3(0.0, m_y * m_s + smile_x * pos.x * pos.x, 0.15);
+        vec3(0.0, m_y * m_s + (smile_x * pos.x * pos.x), 0.15);
 
-    mat3 mouth_rot = rotation(-0.0, 0.0, 0.); // this controls how high the mouth is
+    // mat3 mouth_rot = rotation(0.0, 0.0, 0.); // this controls how high the mouth is
 
     /**
      * good mouth poses...
@@ -160,14 +203,15 @@ vec2 character_head( vec3 pos, vec3 character_c )
 
 
     vec3 mouth_r = vec3(s_x, s_y, m_z) * m_s;
-    float d_mouth = ellipsoid(mouth_rot * (pos - mouth_c), mouth_r) / 2.;
+    float d_mouth = ellipsoid((pos - mouth_c), mouth_r) / (min(s_y, s_x) * 25.);
 
-    float d_mouth_interior = ellipsoid(pos - (head_lower_c + vec3(0.0, -0.02, 0.03)), vec3(0.2, 0.13, 0.22));
+    float d_mouth_interior = ellipsoid(pos - (head_lower_c + vec3(0.0, -0.02, 0.01)), vec3(0.2, 0.13, 0.22));
 
     float d1 = smoothmin(d_eye, d_head, 0.005);
-    float d2 = smoothmax(smoothmax(d1, -d_mouth, 0.01), -d_mouth_interior, 0.002);
+    float d2 = smoothmax(smoothmax(d1, -d_mouth, 0.01), -d_mouth_interior, 0.02);
 
     if (d_eye < d_head) { material = 2.0; }
+    else if (d2 > d2) { material = 3.0; }
     else { material = 1.0; }
 
     return vec2(d2, material);
@@ -236,15 +280,16 @@ void main ()
 {
     vec2 p = (2.0 * gl_FragCoord.xy - u_resolution) / u_resolution.y;
     float time = u_time * 0.1;
+    float focal_length = 4.0;
 
-    vec3 ro = vec3(2.0 * sin(u_mouse_x), 0.25, 2.0 * cos(u_mouse_x));
-    vec3 ta = vec3(0.0, 0.0, 0.0);
+    vec3 ro = vec3(2.0 * sin(u_mouse_x), 0.5, 2.0 * cos(u_mouse_x));
+    vec3 ta = vec3(0.0, 0.15, 0.0);
 
     vec3 ww = normalize( ta - ro );
     vec3 uu = normalize( cross(ww, vec3(0.0, 1.0, 0.0)) );
     vec3 vv = normalize( cross(uu, ww) );
 
-    vec3 rd = normalize( p.x * uu + p.y * vv + 1.5 * ww);
+    vec3 rd = normalize( p.x * uu + p.y * vv + focal_length * ww);
 
     vec3 col = vec3(0.5, 0.6, 0.75) - 0.4 * p.y;
     col = mix(col, vec3(0.7, 0.75, 0.8), exp(-10. * rd.y));
@@ -260,6 +305,7 @@ void main ()
 
         vec3 mate = vec3(0.2, 0.2, 0.2);
         if (hit.y == 2.0) { mate = vec3(0.02, 0.02, 0.03); }
+        if (hit.y == 3.0) { mate = vec3( 0.3, 0.1, 0.1); }
 
         // sun data
         vec3 sun_dir = normalize(vec3(0.4, 0.4, 0.4));

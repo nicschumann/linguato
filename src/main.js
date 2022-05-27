@@ -13,7 +13,11 @@ let linguato = regl({
     uniforms: {
         u_time: regl.prop('u_time'),
         u_resolution : regl.prop('u_resolution'),
-        u_mouse_x: regl.prop('u_mouse_x')
+        u_mouse_x: regl.prop('u_mouse_x'),
+
+        u_width: regl.prop('u_width'),
+        u_open: regl.prop('u_open'),
+        u_smile: regl.prop('u_smile'),
     },
     primitive: 'triangle strip',
     count: 4
@@ -23,11 +27,17 @@ const u_mouse_x_key = 'linguato__u_mouse_x'
 let mouse_active = false;
 let u_mouse_x = Number(localStorage.getItem(u_mouse_x_key)) || 0.0;
 
+let u_mouse_width = 0.0;
+let u_mouse_open = 0.0;
+let u_mouse_smile = 0.0;
+
 window.addEventListener('mousedown', e => {
     mouse_active = true;
 })
 
 window.addEventListener('mousemove', e => {
+    
+
     if (mouse_active) {
         let du = (e.movementX / window.innerWidth)
         u_mouse_x -= Math.PI * du;
@@ -35,6 +45,15 @@ window.addEventListener('mousemove', e => {
         // when we hotload, we still have the same viewing angle
         // we had on our last mouse update.
         localStorage.setItem(u_mouse_x_key, u_mouse_x.toString());
+    } else {
+
+        u_mouse_width = Math.min( Math.max(e.clientX / window.innerWidth, 0.0), 1.0);
+
+        if (e.shiftKey) {
+            u_mouse_smile = Math.min( Math.max((e.clientY / window.innerHeight) * 2.0 - 1.0, -1.0), 1.0);
+        } else {
+            u_mouse_open = Math.min( Math.max(e.clientY / window.innerHeight, 0.0), 1.0);
+        }
     }
 });
 
@@ -44,11 +63,17 @@ window.addEventListener('mouseup', e => {
 
 regl.frame(e => {
     let u_resolution = [2 * window.innerWidth, 2 * window.innerHeight];
-    console.log(u_mouse_x)
+
+    // console.log(`open: ${u_mouse_open}`)
+    // console.log(`width: ${u_mouse_width}`);
 
     linguato({
         u_time: e.time,
         u_resolution,
-        u_mouse_x
+        u_mouse_x,
+
+        u_width: u_mouse_width,
+        u_open: u_mouse_open,
+        u_smile: u_mouse_smile
     })
 })
