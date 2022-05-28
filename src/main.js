@@ -27,9 +27,24 @@ const u_mouse_x_key = 'linguato__u_mouse_x'
 let mouse_active = false;
 let u_mouse_x = Number(localStorage.getItem(u_mouse_x_key)) || 0.0;
 
+const smile_target = document.getElementById('metadata-parameter--mouth-smile--value');
+const openness_target = document.getElementById('metadata-parameter--mouth-openness--value');
+const width_target = document.getElementById('metadata-parameter--mouth-width--value');
+
 let u_mouse_width = 0.0;
 let u_mouse_open = 0.0;
 let u_mouse_smile = 0.0;
+
+smile_target.innerText = u_mouse_smile.toFixed(2);
+width_target.innerText = u_mouse_width.toFixed(2);
+openness_target.innerText = u_mouse_open.toFixed(2);
+
+
+container.addEventListener('mousewheel', e => {
+    e.preventDefault();
+    u_mouse_smile = Math.min(Math.max(u_mouse_smile + (e.deltaY / window.innerHeight), -1.0), 1.0);
+    smile_target.innerText = u_mouse_smile.toFixed(2);
+})
 
 window.addEventListener('mousedown', e => {
     mouse_active = true;
@@ -46,14 +61,11 @@ window.addEventListener('mousemove', e => {
         // we had on our last mouse update.
         localStorage.setItem(u_mouse_x_key, u_mouse_x.toString());
     } else {
-
         u_mouse_width = Math.min( Math.max(e.clientX / window.innerWidth, 0.0), 1.0);
+        u_mouse_open = Math.min( Math.max(e.clientY / window.innerHeight, 0.0), 1.0);
 
-        if (e.shiftKey) {
-            u_mouse_smile = Math.min( Math.max((e.clientY / window.innerHeight) * 2.0 - 1.0, -1.0), 1.0);
-        } else {
-            u_mouse_open = Math.min( Math.max(e.clientY / window.innerHeight, 0.0), 1.0);
-        }
+        width_target.innerText = u_mouse_width.toFixed(2);
+        openness_target.innerText = u_mouse_open.toFixed(2);
     }
 });
 

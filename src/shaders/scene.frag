@@ -152,7 +152,7 @@ vec2 character_head( vec3 pos, vec3 character_c )
 
     // float bk_remap_start = 0.2;
     float bk_remap_start = remap(state_open, 0.0, 1.0,    0.05, 0.3);
-    float bk_remap_end = remap(state_open, 0.0, 1.0,    0.35, 0.45) * remap(state_smile, -1.0, 1.0, 1.0, 0.8);
+    float bk_remap_end = remap(state_open, 0.0, 1.0,    0.35, 0.45) * remap(state_smile, -1.0, 1.0, 0.75, 0.8);
 
 
     float smile_x = remap(state_smile, -1.0, 1.0, -1.0, 1.5); // min -1.0, max: 1.5
@@ -199,8 +199,6 @@ vec2 character_head( vec3 pos, vec3 character_c )
      * wide open mouth: vec3(0.8, 0.2, 0.6) * 0.5s
      * closed mouth
      */
-    // vec4 mouth_state
-
 
     vec3 mouth_r = vec3(s_x, s_y, m_z) * m_s;
     float d_mouth = ellipsoid((pos - mouth_c), mouth_r) / (min(s_y, s_x) * 25.);
